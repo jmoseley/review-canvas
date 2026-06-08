@@ -1,20 +1,33 @@
+/* The host (GitHub app) injects allow-listed theme CSS variables into this
+   webview's :root — Primer tokens like --background-color-default,
+   --text-color-default, --syntax-color-*, and --background-color-diffBlob-* —
+   plus data-color-mode attributes and color-scheme. We consume them with the
+   original dark-palette hex values as fallbacks for hosts that inject nothing
+   (e.g. the Vite dev server in a normal browser tab). */
 :root {
 	color-scheme: light dark;
-	--bg: #0d1117;
-	--bg-2: #161b22;
-	--bg-3: #21262d;
-	--border: #30363d;
-	--fg: #e6edf3;
-	--fg-muted: #9198a1;
-	--accent: #2f81f7;
-	--add: #2ea043;
-	--del: #f85149;
-	--warn: #d29922;
-	--risk-hi: #f85149;
-	--risk-mid: #d29922;
-	--risk-lo: #3fb950;
-	--fact: #58a6ff;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+	--bg: var(--background-color-default, #0d1117);
+	--bg-2: var(--background-color-muted, #161b22);
+	--bg-3: var(--background-color-neutral-muted, #21262d);
+	--border: var(--border-color-default, #30363d);
+	--fg: var(--text-color-default, #e6edf3);
+	--fg-muted: var(--text-color-muted, #9198a1);
+	--accent: var(--text-color-accent, #2f81f7);
+	--add: var(--text-color-success, #2ea043);
+	--del: var(--text-color-danger, #f85149);
+	--warn: var(--text-color-attention, #d29922);
+	--risk-hi: var(--text-color-danger, #f85149);
+	--risk-mid: var(--text-color-attention, #d29922);
+	--risk-lo: var(--text-color-success, #3fb950);
+	--fact: var(--text-color-link, #58a6ff);
+	font-family: var(
+		--font-sans,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		system-ui,
+		sans-serif
+	);
 }
 
 * {
@@ -85,7 +98,7 @@ body {
 	padding: 2px 10px;
 	font-size: 11px;
 	color: var(--fact);
-	font-family: ui-monospace, monospace;
+	font-family: var(--font-mono, ui-monospace, monospace);
 }
 .totals {
 	color: var(--fg-muted);
@@ -200,7 +213,7 @@ body {
 .group-meta {
 	font-size: 10px;
 	color: var(--fg-muted);
-	font-family: ui-monospace, monospace;
+	font-family: var(--font-mono, ui-monospace, monospace);
 }
 .group-files {
 	padding: 2px 0 2px 14px;
@@ -231,7 +244,7 @@ body {
 }
 .file-churn {
 	font-size: 10px;
-	font-family: ui-monospace, monospace;
+	font-family: var(--font-mono, ui-monospace, monospace);
 	color: var(--fg-muted);
 }
 .file-disp {
@@ -258,7 +271,7 @@ body {
 }
 .rollup {
 	font-size: 10px;
-	font-family: ui-monospace, monospace;
+	font-family: var(--font-mono, ui-monospace, monospace);
 	padding: 1px 5px;
 	border-radius: 8px;
 	border: 1px solid var(--border);
@@ -310,7 +323,7 @@ body {
 	text-align: center;
 }
 .diff {
-	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
 	font-size: 12px;
 	line-height: 1.5;
 }
@@ -360,14 +373,14 @@ body {
 	padding: 0 12px;
 }
 .ln.add {
-	background: rgba(46, 160, 67, 0.15);
+	background: var(--background-color-diffBlob-addLine, rgba(46, 160, 67, 0.15));
 }
 .ln.del {
-	background: rgba(248, 81, 73, 0.15);
+	background: var(--background-color-diffBlob-delLine, rgba(248, 81, 73, 0.15));
 }
 .ln.hdr {
 	color: var(--accent);
-	background: var(--bg-2);
+	background: var(--background-color-diffBlob-hunkLine, var(--bg-2));
 }
 .ln.meta {
 	color: var(--fg-muted);
@@ -573,7 +586,7 @@ border-radius: 6px;
 color: var(--fg);
 font-size: 12px;
 cursor: pointer;
-font-family: ui-monospace, monospace;
+font-family: var(--font-mono, ui-monospace, monospace);
 }
 .base-picker-item:hover {
 background: var(--bg-3);
@@ -595,11 +608,14 @@ gap: 6px;
 align-items: center;
 }
 
-/* Syntax highlighting (highlight.js tokens, GitHub-dark palette, scoped to the
-   diff pane so the add/del line tints show through) */
+/* Syntax highlighting (highlight.js tokens). Colors come from the host-injected
+   --syntax-color-* theme variables (the same tokens the GitHub app feeds its
+   own Shiki themes), so highlighting follows the user's active app theme.
+   Hex fallbacks are the GitHub-dark palette. Scoped to the diff pane so the
+   add/del line tints show through. */
 .hunk .hljs-comment,
 .hunk .hljs-quote {
-color: #8b949e;
+color: var(--syntax-color-comment, #8b949e);
 font-style: italic;
 }
 .hunk .hljs-keyword,
@@ -607,21 +623,23 @@ font-style: italic;
 .hunk .hljs-template-tag,
 .hunk .hljs-doctag,
 .hunk .hljs-meta .hljs-keyword {
-color: #ff7b72;
+color: var(--syntax-color-keyword, #ff7b72);
 }
 .hunk .hljs-string,
-.hunk .hljs-regexp,
 .hunk .hljs-template-variable,
 .hunk .hljs-selector-attr,
 .hunk .hljs-selector-pseudo,
 .hunk .hljs-addition {
-color: #a5d6ff;
+color: var(--syntax-color-string, #a5d6ff);
+}
+.hunk .hljs-regexp {
+color: var(--syntax-color-regexp, #a5d6ff);
 }
 .hunk .hljs-title,
 .hunk .hljs-title.class_,
 .hunk .hljs-title.function_,
 .hunk .hljs-section {
-color: #d2a8ff;
+color: var(--syntax-color-entity, #d2a8ff);
 }
 .hunk .hljs-number,
 .hunk .hljs-literal,
@@ -629,29 +647,31 @@ color: #d2a8ff;
 .hunk .hljs-bullet,
 .hunk .hljs-link,
 .hunk .hljs-variable.constant_ {
-color: #79c0ff;
+color: var(--syntax-color-constant, #79c0ff);
 }
 .hunk .hljs-attr,
 .hunk .hljs-attribute,
-.hunk .hljs-variable,
-.hunk .hljs-params,
 .hunk .hljs-property,
 .hunk .hljs-selector-class,
 .hunk .hljs-selector-id {
-color: #79c0ff;
+color: var(--syntax-color-constant, #79c0ff);
+}
+.hunk .hljs-variable,
+.hunk .hljs-params {
+color: var(--syntax-color-variable, #ffa657);
 }
 .hunk .hljs-name,
 .hunk .hljs-tag,
 .hunk .hljs-built_in,
 .hunk .hljs-type {
-color: #7ee787;
+color: var(--syntax-color-tag, #7ee787);
 }
 .hunk .hljs-meta,
 .hunk .hljs-meta .hljs-string {
-color: #d29922;
+color: var(--syntax-color-constant, #d29922);
 }
 .hunk .hljs-deletion {
-color: #ffa198;
+color: var(--syntax-color-invalid, #ffa198);
 }
 .hunk .hljs-emphasis {
 font-style: italic;
