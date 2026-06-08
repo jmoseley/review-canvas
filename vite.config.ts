@@ -39,8 +39,10 @@ export default defineConfig({
 		port: 5173,
 		strictPort: true,
 		proxy: {
-			"/api": { target: devApiTarget(), changeOrigin: true },
-			"/events": { target: devApiTarget(), changeOrigin: true },
+			// ^/api/ (not /api): a bare "/api" prefix would also swallow the
+			// renderer's own /api.ts module request and 404 the module graph.
+			"^/api/": { target: devApiTarget(), changeOrigin: true },
+			"^/events$": { target: devApiTarget(), changeOrigin: true },
 		},
 	},
 });
