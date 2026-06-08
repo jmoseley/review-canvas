@@ -1,0 +1,5 @@
+node_modules/
+dist/
+
+# Runtime state written by storage.mjs into the installed extension dir.
+artifacts/

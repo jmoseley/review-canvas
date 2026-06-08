@@ -1,0 +1,681 @@
+/* The host (GitHub app) injects allow-listed theme CSS variables into this
+   webview's :root — Primer tokens like --background-color-default,
+   --text-color-default, --syntax-color-*, and --background-color-diffBlob-* —
+   plus data-color-mode attributes and color-scheme. We consume them with the
+   original dark-palette hex values as fallbacks for hosts that inject nothing
+   (e.g. the Vite dev server in a normal browser tab). */
+:root {
+	color-scheme: light dark;
+	--bg: var(--background-color-default, #0d1117);
+	--bg-2: var(--background-color-muted, #161b22);
+	--bg-3: var(--background-color-neutral-muted, #21262d);
+	--border: var(--border-color-default, #30363d);
+	--fg: var(--text-color-default, #e6edf3);
+	--fg-muted: var(--text-color-muted, #9198a1);
+	--accent: var(--text-color-accent, #2f81f7);
+	--add: var(--text-color-success, #2ea043);
+	--del: var(--text-color-danger, #f85149);
+	--warn: var(--text-color-attention, #d29922);
+	--risk-hi: var(--text-color-danger, #f85149);
+	--risk-mid: var(--text-color-attention, #d29922);
+	--risk-lo: var(--text-color-success, #3fb950);
+	--fact: var(--text-color-link, #58a6ff);
+	font-family: var(
+		--font-sans,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		system-ui,
+		sans-serif
+	);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+.hidden {
+	display: none !important;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--fg);
+	font-size: 13px;
+}
+
+.app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.btn {
+	background: var(--bg-3);
+	color: var(--fg);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 5px 10px;
+	font-size: 12px;
+	cursor: pointer;
+}
+.btn:hover {
+	border-color: var(--accent);
+}
+.btn.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+	font-weight: 600;
+}
+.btn.ghost {
+	background: transparent;
+}
+.btn.small {
+	padding: 2px 8px;
+	font-size: 11px;
+}
+
+/* Intent band */
+.intent {
+	border-bottom: 1px solid var(--border);
+	background: var(--bg-2);
+	padding: 10px 14px;
+	flex: 0 0 auto;
+}
+.intent-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+.badge {
+	background: var(--bg-3);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 2px 10px;
+	font-size: 11px;
+	color: var(--fact);
+	font-family: var(--font-mono, ui-monospace, monospace);
+}
+.totals {
+	color: var(--fg-muted);
+	font-size: 12px;
+}
+.totals .add {
+	color: var(--add);
+}
+.totals .del {
+	color: var(--del);
+}
+.intent-actions {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.file-chip {
+	font-size: 11px;
+	padding: 3px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--bg-3);
+}
+.file-chip.missing {
+	opacity: 0.55;
+	border-style: dashed;
+}
+.file-gone {
+	color: var(--fg-muted);
+	font-style: italic;
+}
+.tour-stale {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	font-size: 12px;
+	color: var(--warn);
+	background: color-mix(in srgb, var(--warn) 12%, transparent);
+	border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+	border-radius: 8px;
+	padding: 8px 10px;
+	margin-bottom: 10px;
+}
+
+/* Body */
+.body {
+	flex: 1;
+	display: flex;
+	min-height: 0;
+}
+.rail {
+	flex: 0 0 280px;
+	border-right: 1px solid var(--border);
+	background: var(--bg-2);
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.rail-scroll {
+	overflow-y: auto;
+	flex: 1;
+	padding: 6px;
+}
+.rail-empty {
+	color: var(--fg-muted);
+	font-size: 12px;
+	padding: 16px 12px;
+	line-height: 1.5;
+}
+
+.group {
+	margin-bottom: 6px;
+}
+.group-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	background: var(--bg-3);
+	border: 1px solid var(--border);
+}
+.group-head:hover {
+	border-color: var(--accent);
+}
+.group-label {
+	flex: 1;
+	font-weight: 600;
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.risk-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+.risk-hi {
+	background: var(--risk-hi);
+}
+.risk-mid {
+	background: var(--risk-mid);
+}
+.risk-lo {
+	background: var(--risk-lo);
+}
+.group-meta {
+	font-size: 10px;
+	color: var(--fg-muted);
+	font-family: var(--font-mono, ui-monospace, monospace);
+}
+.group-files {
+	padding: 2px 0 2px 14px;
+}
+.file-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border-radius: 5px;
+	cursor: pointer;
+	font-size: 12px;
+}
+.file-row:hover {
+	background: var(--bg-3);
+}
+.file-row.active {
+	background: var(--bg-3);
+	outline: 1px solid var(--accent);
+}
+.file-path {
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	direction: rtl;
+	text-align: left;
+}
+.file-churn {
+	font-size: 10px;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	color: var(--fg-muted);
+}
+.file-disp {
+	font-size: 11px;
+	font-weight: 600;
+}
+.disp-reviewed {
+	color: var(--add);
+}
+.disp-needs-work {
+	color: var(--warn);
+}
+.disp-skip {
+	color: var(--fg-muted);
+}
+.stale-dot {
+	color: var(--warn);
+	font-size: 9px;
+}
+.stale-note {
+	font-size: 11px;
+	color: var(--warn);
+	margin: 6px 0;
+}
+.rollup {
+	font-size: 10px;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	padding: 1px 5px;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	color: var(--fg-muted);
+}
+.roll-reviewed {
+	color: var(--add);
+	border-color: var(--add);
+}
+.roll-partial {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+.roll-needs-work {
+	color: var(--warn);
+	border-color: var(--warn);
+}
+.roll-stale {
+	color: var(--warn);
+	border-color: var(--warn);
+}
+.roll-none {
+	color: var(--fg-muted);
+}
+.group-review {
+	flex: 0 0 auto;
+	padding: 1px 6px;
+}
+.disp {
+	font-size: 10px;
+}
+
+/* Inspector */
+.inspector {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	min-width: 0;
+}
+.diff-pane {
+	flex: 1 1 auto;
+	overflow: auto;
+	min-height: 0;
+}
+.inspector-empty {
+	color: var(--fg-muted);
+	padding: 40px;
+	text-align: center;
+}
+.diff {
+	font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: 12px;
+	line-height: 1.5;
+}
+.diff-file-head {
+	position: sticky;
+	top: 0;
+	background: var(--bg-2);
+	border-bottom: 1px solid var(--border);
+	padding: 8px 12px;
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	z-index: 2;
+}
+.diff-file-head .path {
+	font-weight: 600;
+}
+.flags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px 12px;
+	background: var(--bg-2);
+	border-bottom: 1px solid var(--border);
+}
+.flag {
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 6px;
+	background: rgba(210, 153, 34, 0.15);
+	border: 1px solid var(--warn);
+	color: var(--warn);
+}
+.reasons {
+	padding: 6px 12px;
+	font-size: 11px;
+	color: var(--fact);
+	border-bottom: 1px solid var(--border);
+	background: var(--bg-2);
+}
+.hunk {
+	white-space: pre;
+	overflow-x: auto;
+}
+.hunk .ln {
+	display: block;
+	padding: 0 12px;
+}
+.ln.add {
+	background: var(--background-color-diffBlob-addLine, rgba(46, 160, 67, 0.15));
+}
+.ln.del {
+	background: var(--background-color-diffBlob-delLine, rgba(248, 81, 73, 0.15));
+}
+.ln.hdr {
+	color: var(--accent);
+	background: var(--background-color-diffBlob-hunkLine, var(--bg-2));
+}
+.ln.meta {
+	color: var(--fg-muted);
+}
+
+.disp-bar {
+	display: flex;
+	gap: 6px;
+	padding: 8px 12px;
+	align-items: center;
+}
+
+/* Tour — docked panel above the diff (not a floating overlay) */
+.tour {
+	flex: 0 0 auto;
+	max-height: 46%;
+	display: flex;
+	flex-direction: column;
+	background: var(--bg-2);
+	border-bottom: 1px solid var(--accent);
+	padding: 12px 14px;
+	overflow: auto;
+	min-height: 0;
+}
+.tour-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8px;
+	position: sticky;
+	top: -12px;
+	background: var(--bg-2);
+	padding-top: 4px;
+	z-index: 1;
+}
+.tour-progress {
+	font-weight: 600;
+	color: var(--accent);
+}
+.tour-nav {
+	display: flex;
+	gap: 6px;
+}
+.tour-title {
+	font-size: 15px;
+	font-weight: 700;
+	margin: 4px 0;
+}
+.tour-section {
+	margin: 8px 0;
+}
+.tour-section h4 {
+	margin: 0 0 3px;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--fg-muted);
+}
+.tour-section.scrutinize {
+	border-left: 2px solid var(--warn);
+	padding-left: 8px;
+}
+.tour-disposition {
+	display: flex;
+	gap: 6px;
+	margin-top: 10px;
+	border-top: 1px solid var(--border);
+	padding-top: 8px;
+}
+
+/* Chat dock */
+.chat-toggle {
+	position: absolute;
+	right: 16px;
+	bottom: 16px;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: var(--accent);
+	border: none;
+	color: #fff;
+	font-size: 18px;
+	cursor: pointer;
+	z-index: 6;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.chat {
+	position: absolute;
+	right: 16px;
+	bottom: 16px;
+	width: 360px;
+	height: 460px;
+	max-height: 70vh;
+	background: var(--bg-2);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	z-index: 7;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+.chat-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	padding: 8px 12px;
+	border: none;
+	border-bottom: 1px solid var(--border);
+	background: transparent;
+	color: var(--fg);
+	font: inherit;
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+}
+.chat-head:hover {
+	background: var(--bg-3);
+}
+.chat-min {
+	opacity: 0.6;
+	font-size: 14px;
+}
+.chat-log {
+	flex: 1;
+	overflow-y: auto;
+	padding: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.msg {
+	padding: 7px 10px;
+	border-radius: 8px;
+	font-size: 12px;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+.msg.user {
+	background: var(--accent);
+	color: #fff;
+	align-self: flex-end;
+	max-width: 85%;
+}
+.msg.assistant {
+	background: var(--bg-3);
+	align-self: flex-start;
+	max-width: 90%;
+}
+.chat-form {
+	display: flex;
+	gap: 6px;
+	padding: 8px;
+	border-top: 1px solid var(--border);
+}
+#chat-input {
+	flex: 1;
+	background: var(--bg);
+	color: var(--fg);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 6px 8px;
+	font-size: 12px;
+}
+
+/* Base picker popover (replaces window.prompt) */
+.base-picker {
+position: absolute;
+top: 44px;
+right: 14px;
+z-index: 30;
+width: 320px;
+max-height: 50vh;
+display: flex;
+flex-direction: column;
+background: var(--bg-2);
+border: 1px solid var(--border);
+border-radius: 8px;
+box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.base-picker input {
+margin: 8px;
+padding: 6px 8px;
+background: var(--bg);
+border: 1px solid var(--border);
+border-radius: 6px;
+color: var(--fg);
+font-size: 12px;
+}
+.base-picker-list {
+overflow-y: auto;
+padding: 0 4px 6px;
+}
+.base-picker-item {
+display: block;
+width: 100%;
+text-align: left;
+padding: 5px 10px;
+background: transparent;
+border: 0;
+border-radius: 6px;
+color: var(--fg);
+font-size: 12px;
+cursor: pointer;
+font-family: var(--font-mono, ui-monospace, monospace);
+}
+.base-picker-item:hover {
+background: var(--bg-3);
+}
+.base-picker-item.current {
+color: var(--accent);
+font-weight: 600;
+}
+.base-picker-empty {
+padding: 8px 12px;
+color: var(--fg-muted);
+font-size: 12px;
+}
+
+/* Inline confirm (replaces window.confirm) */
+.confirm-inline {
+display: inline-flex;
+gap: 6px;
+align-items: center;
+}
+
+/* Syntax highlighting (highlight.js tokens). Colors come from the host-injected
+   --syntax-color-* theme variables (the same tokens the GitHub app feeds its
+   own Shiki themes), so highlighting follows the user's active app theme.
+   Hex fallbacks are the GitHub-dark palette. Scoped to the diff pane so the
+   add/del line tints show through. */
+.hunk .hljs-comment,
+.hunk .hljs-quote {
+color: var(--syntax-color-comment, #8b949e);
+font-style: italic;
+}
+.hunk .hljs-keyword,
+.hunk .hljs-selector-tag,
+.hunk .hljs-template-tag,
+.hunk .hljs-doctag,
+.hunk .hljs-meta .hljs-keyword {
+color: var(--syntax-color-keyword, #ff7b72);
+}
+.hunk .hljs-string,
+.hunk .hljs-template-variable,
+.hunk .hljs-selector-attr,
+.hunk .hljs-selector-pseudo,
+.hunk .hljs-addition {
+color: var(--syntax-color-string, #a5d6ff);
+}
+.hunk .hljs-regexp {
+color: var(--syntax-color-regexp, #a5d6ff);
+}
+.hunk .hljs-title,
+.hunk .hljs-title.class_,
+.hunk .hljs-title.function_,
+.hunk .hljs-section {
+color: var(--syntax-color-entity, #d2a8ff);
+}
+.hunk .hljs-number,
+.hunk .hljs-literal,
+.hunk .hljs-symbol,
+.hunk .hljs-bullet,
+.hunk .hljs-link,
+.hunk .hljs-variable.constant_ {
+color: var(--syntax-color-constant, #79c0ff);
+}
+.hunk .hljs-attr,
+.hunk .hljs-attribute,
+.hunk .hljs-property,
+.hunk .hljs-selector-class,
+.hunk .hljs-selector-id {
+color: var(--syntax-color-constant, #79c0ff);
+}
+.hunk .hljs-variable,
+.hunk .hljs-params {
+color: var(--syntax-color-variable, #ffa657);
+}
+.hunk .hljs-name,
+.hunk .hljs-tag,
+.hunk .hljs-built_in,
+.hunk .hljs-type {
+color: var(--syntax-color-tag, #7ee787);
+}
+.hunk .hljs-meta,
+.hunk .hljs-meta .hljs-string {
+color: var(--syntax-color-constant, #d29922);
+}
+.hunk .hljs-deletion {
+color: var(--syntax-color-invalid, #ffa198);
+}
+.hunk .hljs-emphasis {
+font-style: italic;
+}
+.hunk .hljs-strong {
+font-weight: 600;
+}

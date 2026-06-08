@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["node"],
+		"jsx": "react-jsx",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"isolatedModules": true,
+		"forceConsistentCasingInFileNames": true,
+		"paths": {
+			"@github/copilot-sdk": [
+				"/Applications/GitHub Copilot.app/Contents/Resources/copilot-sdk/index.d.ts"
+			],
+			"@github/copilot-sdk/extension": [
+				"/Applications/GitHub Copilot.app/Contents/Resources/copilot-sdk/extension.d.ts"
+			]
+		}
+	},
+	"include": ["src", "vite.config.ts"]
+}
