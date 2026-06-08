@@ -39,10 +39,12 @@ export default defineConfig({
 		port: 5173,
 		strictPort: true,
 		proxy: {
-			// ^/api/ (not /api): a bare "/api" prefix would also swallow the
-			// renderer's own /api.ts module request and 404 the module graph.
+			// Anchored regexes: a bare "/api" prefix would swallow the renderer's
+			// own /api.ts module request. Vite matches the pattern against the URL
+			// *including the query string*, so /events must not be $-terminated
+			// (it always arrives as /events?instanceId=...).
 			"^/api/": { target: devApiTarget(), changeOrigin: true },
-			"^/events$": { target: devApiTarget(), changeOrigin: true },
+			"^/events(\\?|$)": { target: devApiTarget(), changeOrigin: true },
 		},
 	},
 });
