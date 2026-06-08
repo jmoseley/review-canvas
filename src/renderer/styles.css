@@ -594,3 +594,68 @@ display: inline-flex;
 gap: 6px;
 align-items: center;
 }
+
+/* Syntax highlighting (highlight.js tokens, GitHub-dark palette, scoped to the
+   diff pane so the add/del line tints show through) */
+.hunk .hljs-comment,
+.hunk .hljs-quote {
+color: #8b949e;
+font-style: italic;
+}
+.hunk .hljs-keyword,
+.hunk .hljs-selector-tag,
+.hunk .hljs-template-tag,
+.hunk .hljs-doctag,
+.hunk .hljs-meta .hljs-keyword {
+color: #ff7b72;
+}
+.hunk .hljs-string,
+.hunk .hljs-regexp,
+.hunk .hljs-template-variable,
+.hunk .hljs-selector-attr,
+.hunk .hljs-selector-pseudo,
+.hunk .hljs-addition {
+color: #a5d6ff;
+}
+.hunk .hljs-title,
+.hunk .hljs-title.class_,
+.hunk .hljs-title.function_,
+.hunk .hljs-section {
+color: #d2a8ff;
+}
+.hunk .hljs-number,
+.hunk .hljs-literal,
+.hunk .hljs-symbol,
+.hunk .hljs-bullet,
+.hunk .hljs-link,
+.hunk .hljs-variable.constant_ {
+color: #79c0ff;
+}
+.hunk .hljs-attr,
+.hunk .hljs-attribute,
+.hunk .hljs-variable,
+.hunk .hljs-params,
+.hunk .hljs-property,
+.hunk .hljs-selector-class,
+.hunk .hljs-selector-id {
+color: #79c0ff;
+}
+.hunk .hljs-name,
+.hunk .hljs-tag,
+.hunk .hljs-built_in,
+.hunk .hljs-type {
+color: #7ee787;
+}
+.hunk .hljs-meta,
+.hunk .hljs-meta .hljs-string {
+color: #d29922;
+}
+.hunk .hljs-deletion {
+color: #ffa198;
+}
+.hunk .hljs-emphasis {
+font-style: italic;
+}
+.hunk .hljs-strong {
+font-weight: 600;
+}

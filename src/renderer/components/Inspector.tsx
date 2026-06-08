@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import type { FileDetail, Overview } from "../../shared/types.js";
 import { api } from "../api.js";
+import { highlightLine, languageForPath } from "../highlight.js";
 import { DISP_MARK, DISP_STATES, riskClass } from "./ui.js";
 
 export type InspectorContent =
@@ -11,19 +12,46 @@ export type InspectorContent =
 	| { kind: "file"; path: string }
 	| { kind: "step-no-diff"; title: string };
 
-function DiffText({ text }: { text: string }) {
+function DiffText({ text, path }: { text: string; path: string }) {
+	const language = languageForPath(path);
 	return (
 		<div className="hunk">
 			{text.split("\n").map((line, i) => {
 				let cls = "";
-				if (line.startsWith("+") && !line.startsWith("+++")) cls = "add";
-				else if (line.startsWith("-") && !line.startsWith("---")) cls = "del";
-				else if (line.startsWith("@@")) cls = "hdr";
+				let marker = "";
+				let code = line;
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					cls = "add";
+					marker = "+";
+					code = line.slice(1);
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					cls = "del";
+					marker = "-";
+					code = line.slice(1);
+				} else if (line.startsWith("@@")) cls = "hdr";
 				else if (/^(diff |index |--- |\+\+\+ |new file|deleted|rename|similarity)/.test(line))
 					cls = "meta";
+				// Hunk headers and diff metadata stay plain; code lines (added,
+				// removed, context) get per-line syntax highlighting under the
+				// existing add/del tinting.
+				if (cls === "hdr" || cls === "meta") {
+					return (
+						<span className={`ln ${cls}`} key={i}>
+							{line || " "}
+						</span>
+					);
+				}
+				if (cls !== "add" && cls !== "del" && line.startsWith(" ")) {
+					code = line.slice(1);
+					marker = " ";
+				}
 				return (
 					<span className={`ln ${cls}`} key={i}>
-						{line || " "}
+						{marker}
+						<span
+							// highlight.js output (or plain-escaped text on fallback)
+							dangerouslySetInnerHTML={{ __html: highlightLine(code, language) || " " }}
+						/>
 					</span>
 				);
 			})}
@@ -126,7 +154,7 @@ function FileDiff({ path, overview }: { path: string; overview: Overview | null 
 					</button>
 				))}
 			</div>
-			<DiffText text={diff || "(no diff)"} />
+			<DiffText text={diff || "(no diff)"} path={path} />
 		</>
 	);
 }

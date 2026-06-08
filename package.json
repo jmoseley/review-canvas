@@ -22,5 +22,8 @@
     "build": "npm run build:server && npm run build:renderer",
     "dev": "node scripts/dev.mjs",
     "share": "node scripts/share.mjs"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1"
   }
 }
