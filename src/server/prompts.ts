@@ -1,23 +1,12 @@
-// Prompt builders + response parsers for the Canvas → agent delegation.
-// Every model call asks for strict JSON we can render with its evidence.
+// Prompt builders + step normalizers for the Canvas → agent delegation.
 // The model produces *hints*; deterministic git facts stay authoritative.
 
-function fileLines(overview, max = 60) {
-	return overview.files
-		.slice(0, max)
-		.map(
-			(f) =>
-				`- ${f.path} (${f.status}, +${f.additions}/-${f.deletions}${
-					f.risk ? `, risk ${f.risk.score.toFixed(2)}` : ""
-				})`,
-		)
-		.join("\n");
-}
+import type { Overview, TourStep } from "../shared/types.js";
 
 // Lists every concern group WITH its file paths (no truncation) so the model
 // can map each tour step onto a real group + real files. Cheap metadata only —
 // the actual diff content is fetched by the agent itself (see buildTourPrompt).
-function groupBlocks(overview) {
+function groupBlocks(overview: Overview): string {
 	if (!overview.groups.length) {
 		return "(no precomputed groups — inspect the diff and choose your own grouping)";
 	}
@@ -32,7 +21,7 @@ function groupBlocks(overview) {
 		.join("\n");
 }
 
-export function buildTourPrompt(overview) {
+export function buildTourPrompt(overview: Overview): string {
 	const canvasResolved = overview.totals.files > 0;
 	const canvasSummary = canvasResolved
 		? `The canvas's own heuristics see this diff (use as a hint; re-verify against your own diff):
@@ -73,48 +62,34 @@ When you have the ordered steps, call the \`submit_review_tour\` tool — do NOT
 - "steps": [{"title","groupId","files","purpose","whereItSits","scrutinize"}]`;
 }
 
-export function parseTourResponse(text) {
-	const obj = extractJson(text);
-	return obj ? normalizeSteps(obj.steps) : null;
+/** Raw step shape as the agent may submit it. */
+export interface RawStep {
+	title?: unknown;
+	groupId?: unknown;
+	files?: unknown;
+	purpose?: unknown;
+	whereItSits?: unknown;
+	scrutinize?: unknown;
 }
 
-// Coerce already-parsed tour steps (from the tool args or a parsed reply) into
-// the canonical, indexed shape the renderer + storage expect.
-export function normalizeSteps(rawSteps) {
+// Coerce already-parsed tour steps (from the tool args) into the canonical,
+// indexed shape the renderer + storage expect.
+export function normalizeSteps(rawSteps: unknown): TourStep[] | null {
 	if (!Array.isArray(rawSteps)) return null;
-	const steps = rawSteps
+	const steps: TourStep[] = (rawSteps as RawStep[])
 		.map((s, i) => ({
 			index: i,
 			title: String(s?.title || `Step ${i + 1}`),
-			groupId: s?.groupId ?? null,
+			groupId: s?.groupId == null ? null : String(s.groupId),
 			files: Array.isArray(s?.files) ? s.files.map(String) : [],
 			purpose: String(s?.purpose || ""),
 			whereItSits: String(s?.whereItSits || ""),
 			scrutinize: Array.isArray(s?.scrutinize) ? s.scrutinize.map(String) : [],
+			reviewState: null,
+			reviewedCount: 0,
+			fileCount: 0,
+			missingFiles: [],
 		}))
 		.filter((s) => s.title);
 	return steps.length ? steps : null;
-}
-
-// Tolerant JSON extraction: handles accidental ```json fences or surrounding prose.
-function extractJson(text) {
-	if (!text) return null;
-	let s = String(text).trim();
-	const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
-	if (fence) s = fence[1].trim();
-	try {
-		return JSON.parse(s);
-	} catch {
-		// fall through to brace scanning
-	}
-	const start = s.indexOf("{");
-	const end = s.lastIndexOf("}");
-	if (start >= 0 && end > start) {
-		try {
-			return JSON.parse(s.slice(start, end + 1));
-		} catch {
-			return null;
-		}
-	}
-	return null;
 }

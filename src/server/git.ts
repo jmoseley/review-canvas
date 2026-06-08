@@ -3,6 +3,7 @@
 // and lightweight co-change history used to seed decomposition.
 
 import { execFile } from "node:child_process";
+import type { FileEntry, FileStatus, Totals } from "../shared/types.js";
 
 const EXEC_OPTS = {
 	maxBuffer: 32 * 1024 * 1024,
@@ -10,11 +11,33 @@ const EXEC_OPTS = {
 	env: { ...process.env, GIT_PAGER: "cat", PAGER: "cat", NO_COLOR: "1" },
 };
 
-export function runGit(cwd, args) {
+/** A diff file before risk/disposition decoration (see state.ts). */
+export type DiffFile = Pick<
+	FileEntry,
+	| "path"
+	| "oldPath"
+	| "status"
+	| "additions"
+	| "deletions"
+	| "noise"
+	| "renameOnly"
+	| "contentSha"
+>;
+
+export interface DiffResult {
+	baseRef: string;
+	mergeBase: string;
+	headSha: string;
+	headShort: string;
+	files: DiffFile[];
+	totals: Totals;
+}
+
+export function runGit(cwd: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
 		execFile("git", ["-C", cwd, ...args], EXEC_OPTS, (err, stdout, stderr) => {
 			if (err) {
-				err.stderr = stderr;
+				(err as NodeJS.ErrnoException & { stderr?: string }).stderr = stderr;
 				reject(err);
 				return;
 			}
@@ -25,17 +48,22 @@ export function runGit(cwd, args) {
 
 // Like runGit, but feeds `input` to the child's stdin. Used for
 // `hash-object --stdin-paths`, which avoids argv length limits on huge diffs.
-function runGitStdin(cwd, args, input) {
+function runGitStdin(cwd: string, args: string[], input: string): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const child = execFile("git", ["-C", cwd, ...args], EXEC_OPTS, (err, stdout, stderr) => {
-			if (err) {
-				err.stderr = stderr;
-				reject(err);
-				return;
-			}
-			resolve(stdout);
-		});
-		child.stdin.end(input);
+		const child = execFile(
+			"git",
+			["-C", cwd, ...args],
+			EXEC_OPTS,
+			(err, stdout, stderr) => {
+				if (err) {
+					(err as NodeJS.ErrnoException & { stderr?: string }).stderr = stderr;
+					reject(err);
+					return;
+				}
+				resolve(stdout);
+			},
+		);
+		child.stdin?.end(input);
 	});
 }
 
@@ -44,7 +72,7 @@ function runGitStdin(cwd, args, input) {
 // content-addressed so it survives new commits when a file's content is
 // unchanged. Deleted files get a sentinel. Paths are repo-relative; cwd is the
 // repo toplevel, so `--stdin-paths` resolves them correctly.
-async function attachContentShas(cwd, files) {
+async function attachContentShas(cwd: string, files: DiffFile[]): Promise<void> {
 	for (const f of files) f.contentSha = f.status === "D" ? "deleted" : null;
 	const hashable = files.filter((f) => f.status !== "D");
 	if (!hashable.length) return;
@@ -60,7 +88,7 @@ async function attachContentShas(cwd, files) {
 	}
 }
 
-async function tryGit(cwd, args, fallback = "") {
+async function tryGit(cwd: string, args: string[], fallback = ""): Promise<string> {
 	try {
 		return (await runGit(cwd, args)).trim();
 	} catch {
@@ -72,7 +100,7 @@ async function tryGit(cwd, args, fallback = "") {
 // branch. This mirrors the app's top-priority `source_pr_base_ref` signal and
 // is the most authoritative auto-detected base. Returns "" when gh is missing,
 // unauthenticated, or the branch has no PR.
-function tryGhPrBase(cwd) {
+function tryGhPrBase(cwd: string): Promise<string> {
 	return new Promise((resolve) => {
 		execFile(
 			"gh",
@@ -83,7 +111,7 @@ function tryGhPrBase(cwd) {
 	});
 }
 
-export async function repoRoot(cwd) {
+export async function repoRoot(cwd: string): Promise<string> {
 	const root = await tryGit(cwd, ["rev-parse", "--show-toplevel"]);
 	return root || cwd;
 }
@@ -95,7 +123,9 @@ export async function repoRoot(cwd) {
 // the first one that is inside a git repository, honoring an explicit
 // workspace path when it happens to be a repo. Falls back to the first
 // truthy candidate (or process.cwd()) when none are git-backed.
-export async function resolveRepoCwd(candidates) {
+export async function resolveRepoCwd(
+	candidates: (string | null | undefined)[],
+): Promise<string> {
 	for (const candidate of candidates) {
 		if (!candidate) continue;
 		const root = await tryGit(candidate, ["rev-parse", "--show-toplevel"]);
@@ -113,7 +143,10 @@ export async function resolveRepoCwd(candidates) {
 // We deliberately do NOT use the branch's own upstream (@{u}): for a pushed
 // feature branch @{u} is its own remote tracking ref, so merge-base @{u} HEAD
 // collapses to ~HEAD and yields a near-empty review diff.
-export async function resolveBaseRef(cwd, explicitBase) {
+export async function resolveBaseRef(
+	cwd: string,
+	explicitBase?: string | null,
+): Promise<string> {
 	if (explicitBase) return explicitBase;
 
 	const prBase = await tryGhPrBase(cwd);
@@ -133,7 +166,7 @@ export async function resolveBaseRef(cwd, explicitBase) {
 	return "HEAD~1";
 }
 
-export async function listBaseCandidates(cwd) {
+export async function listBaseCandidates(cwd: string): Promise<string[]> {
 	const out = await tryGit(cwd, [
 		"for-each-ref",
 		"--format=%(refname:short)",
@@ -155,12 +188,12 @@ const NOISE_PATTERNS = [
 	/(^|\/)__snapshots__\//,
 ];
 
-export function isNoiseFile(path) {
+export function isNoiseFile(path: string): boolean {
 	return NOISE_PATTERNS.some((re) => re.test(path));
 }
 
 // Compute the structural diff between the merge-base and the working tree.
-export async function computeDiff(cwd, baseRef) {
+export async function computeDiff(cwd: string, baseRef: string): Promise<DiffResult> {
 	const headSha = (await tryGit(cwd, ["rev-parse", "HEAD"])) || "WORKTREE";
 	const headShort = headSha.slice(0, 12);
 	let mergeBase = await tryGit(cwd, ["merge-base", baseRef, "HEAD"]);
@@ -182,7 +215,7 @@ export async function computeDiff(cwd, baseRef) {
 		mergeBase,
 	]);
 
-	const churn = new Map(); // path -> { additions, deletions }
+	const churn = new Map<string, { additions: number; deletions: number }>();
 	for (const line of numstat.split("\n")) {
 		if (!line.trim()) continue;
 		const [add, del, ...rest] = line.split("\t");
@@ -196,14 +229,14 @@ export async function computeDiff(cwd, baseRef) {
 		});
 	}
 
-	const files = [];
+	const files: DiffFile[] = [];
 	for (const line of nameStatus.split("\n")) {
 		if (!line.trim()) continue;
 		const parts = line.split("\t");
 		const code = parts[0];
-		let status = code[0];
+		const status = code[0] as FileStatus;
 		let path = parts[1];
-		let oldPath = null;
+		let oldPath: string | null = null;
 		if (status === "R" || status === "C") {
 			oldPath = parts[1];
 			path = parts[2];
@@ -220,6 +253,7 @@ export async function computeDiff(cwd, baseRef) {
 				(status === "R" || status === "C") &&
 				c.additions === 0 &&
 				c.deletions === 0,
+			contentSha: null,
 		});
 	}
 
@@ -242,21 +276,24 @@ export async function computeDiff(cwd, baseRef) {
 }
 
 // Full unified diff text for one file (used by the inspector pane).
-export async function fileDiff(cwd, mergeBase, path) {
-	const text = await tryGit(cwd, [
-		"diff",
-		"--no-color",
-		"--find-renames",
-		mergeBase,
-		"--",
-		path,
-	]);
-	return text;
+export async function fileDiff(
+	cwd: string,
+	mergeBase: string,
+	path: string,
+): Promise<string> {
+	return tryGit(cwd, ["diff", "--no-color", "--find-renames", mergeBase, "--", path]);
 }
+
+/** "a\u0000b" pair key -> co-change count. */
+export type CoChangeMap = Map<string, number>;
 
 // Files that historically change together with the changed set, mined from
 // recent history. Used as a decomposition signal (co-change cohesion).
-export async function coChangeGroups(cwd, changedPaths, limit = 150) {
+export async function coChangeGroups(
+	cwd: string,
+	changedPaths: string[],
+	limit = 150,
+): Promise<CoChangeMap> {
 	const changed = new Set(changedPaths);
 	const out = await tryGit(cwd, [
 		"log",
@@ -266,7 +303,7 @@ export async function coChangeGroups(cwd, changedPaths, limit = 150) {
 		"--pretty=format:%x00",
 	]);
 	const commits = out.split("\u0000");
-	const pairCounts = new Map(); // "a\u0000b" -> count
+	const pairCounts: CoChangeMap = new Map();
 	for (const commit of commits) {
 		const paths = commit
 			.split("\n")

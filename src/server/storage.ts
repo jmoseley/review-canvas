@@ -6,70 +6,96 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Disposition, TourStep } from "../shared/types.js";
 
 const STORAGE_VERSION = 1;
-const cache = new Map(); // domainId -> record
 
-function storageRoot() {
+/** Persisted tour shape (derived fields like per-step rollups are recomputed). */
+export interface StoredTour {
+	steps: TourStep[];
+	current: number;
+	generatedAt: string;
+	mergeBase: string | null;
+	files: { path: string; sha: string | null }[];
+	stale?: boolean;
+}
+
+export interface StoredRecord {
+	version: number;
+	domain: string;
+	/** Legacy per-snapshot review state (migrated into the ledger). */
+	dispositions: Record<string, { state: Disposition; at?: string }>;
+	tour: StoredTour | null;
+	/** User base override. */
+	base: string | null;
+}
+
+export interface LedgerEntry {
+	state: Disposition;
+	sha: string | null;
+	mergeBase: string | null;
+	at: string;
+}
+
+export interface Ledger {
+	version: number;
+	key: string;
+	files: Record<string, LedgerEntry>;
+}
+
+const cache = new Map<string, StoredRecord>();
+
+function storageRoot(): string {
 	const home = process.env.COPILOT_HOME || join(homedir(), ".copilot");
 	return join(home, "extensions", "review-lens", "artifacts");
 }
 
-export function domainId(repoRoot, baseRef, headSha) {
+export function domainId(repoRoot: string, baseRef: string, headSha: string): string {
 	return `${repoRoot}::${baseRef}..${headSha}`;
 }
 
-function fileFor(domain) {
+function fileFor(domain: string): string {
 	const hash = createHash("sha1").update(domain).digest("hex").slice(0, 16);
 	return join(storageRoot(), `${hash}.json`);
 }
 
-function emptyRecord(domain) {
+function emptyRecord(domain: string): StoredRecord {
 	return {
 		version: STORAGE_VERSION,
 		domain,
-		dispositions: {}, // legacy per-snapshot review state (migrated into the ledger)
-		tour: null, // { steps, current, generatedAt }
-		base: null, // user base override
+		dispositions: {},
+		tour: null,
+		base: null,
 	};
 }
 
-export async function loadRecord(domain) {
-	if (cache.has(domain)) return cache.get(domain);
+export async function loadRecord(domain: string): Promise<StoredRecord> {
+	const cached = cache.get(domain);
+	if (cached) return cached;
 	let record = emptyRecord(domain);
 	try {
 		const raw = JSON.parse(await readFile(fileFor(domain), "utf8"));
 		if (raw?.version === STORAGE_VERSION) {
 			record = { ...record, ...raw, domain };
 		}
-	} catch (err) {
-		if (err?.code !== "ENOENT") {
-			// Corrupt file: start fresh rather than crash the provider.
-		}
+	} catch {
+		// Missing or corrupt file: start fresh rather than crash the provider.
 	}
 	cache.set(domain, record);
 	return record;
 }
 
-export async function saveRecord(domain) {
+export async function saveRecord(domain: string): Promise<void> {
 	const record = cache.get(domain);
 	if (!record) return;
 	await mkdir(storageRoot(), { recursive: true });
 	await writeFile(fileFor(domain), `${JSON.stringify(record, null, 2)}\n`);
 }
 
-export async function setDisposition(domain, key, state) {
-	const record = await loadRecord(domain);
-	if (state === null) {
-		delete record.dispositions[key];
-	} else {
-		record.dispositions[key] = { state, at: new Date().toISOString() };
-	}
-	await saveRecord(domain);
-	return record;
-}
-
-export async function patchRecord(domain, patch) {
+export async function patchRecord(
+	domain: string,
+	patch: Partial<StoredRecord>,
+): Promise<StoredRecord> {
 	const record = await loadRecord(domain);
 	Object.assign(record, patch);
 	await saveRecord(domain);
@@ -84,25 +110,25 @@ export async function patchRecord(domain, patch) {
 // decides staleness by comparing the stored fingerprint to the file's current
 // one. Keeping head out of the key means new commits don't wipe review state.
 
-const ledgerCache = new Map(); // ledgerKey -> ledger
+const ledgerCache = new Map<string, Ledger>();
 
-export function ledgerId(repoRoot, baseRef) {
+export function ledgerId(repoRoot: string, baseRef: string): string {
 	return `${repoRoot}::${baseRef}`;
 }
 
-function ledgerFileFor(key) {
+function ledgerFileFor(key: string): string {
 	const hash = createHash("sha1").update(`ledger:${key}`).digest("hex").slice(0, 16);
 	return join(storageRoot(), `ledger-${hash}.json`);
 }
 
-function emptyLedger(key) {
+function emptyLedger(key: string): Ledger {
 	return { version: STORAGE_VERSION, key, files: {} };
-	// files[path] = { state, sha, mergeBase, at }
 }
 
-export async function loadLedger(repoRoot, baseRef) {
+export async function loadLedger(repoRoot: string, baseRef: string): Promise<Ledger> {
 	const key = ledgerId(repoRoot, baseRef);
-	if (ledgerCache.has(key)) return ledgerCache.get(key);
+	const cached = ledgerCache.get(key);
+	if (cached) return cached;
 	let ledger = emptyLedger(key);
 	try {
 		const raw = JSON.parse(await readFile(ledgerFileFor(key), "utf8"));
@@ -116,7 +142,7 @@ export async function loadLedger(repoRoot, baseRef) {
 	return ledger;
 }
 
-export async function saveLedger(repoRoot, baseRef) {
+export async function saveLedger(repoRoot: string, baseRef: string): Promise<void> {
 	const key = ledgerId(repoRoot, baseRef);
 	const ledger = ledgerCache.get(key);
 	if (!ledger) return;
@@ -125,8 +151,13 @@ export async function saveLedger(repoRoot, baseRef) {
 }
 
 // Record (or clear) the review state for one file at a given fingerprint.
-// fingerprint = { sha, mergeBase }.
-export async function setFileReview(repoRoot, baseRef, path, state, fingerprint) {
+export async function setFileReview(
+	repoRoot: string,
+	baseRef: string,
+	path: string,
+	state: Disposition | null,
+	fingerprint: { sha: string | null; mergeBase: string | null },
+): Promise<Ledger> {
 	const ledger = await loadLedger(repoRoot, baseRef);
 	if (state === null) {
 		delete ledger.files[path];
@@ -143,7 +174,11 @@ export async function setFileReview(repoRoot, baseRef, path, state, fingerprint)
 }
 
 // Move a ledger entry when a file is renamed but its content is unchanged.
-export function renameLedgerEntry(ledger, oldPath, newPath) {
+export function renameLedgerEntry(
+	ledger: Ledger,
+	oldPath: string,
+	newPath: string,
+): boolean {
 	if (!ledger.files[oldPath] || ledger.files[newPath]) return false;
 	ledger.files[newPath] = ledger.files[oldPath];
 	delete ledger.files[oldPath];

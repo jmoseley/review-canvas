@@ -2,14 +2,23 @@
 // These are *attention hints*, never gates. Every score ships with the
 // evidence that produced it so the UI can show the "why", not just a number.
 
-import { fileDiff } from "./git.mjs";
+import { fileDiff, type CoChangeMap, type DiffFile, runGit } from "./git.js";
+import type { Affinity, RiskScore, SuspicionFlag } from "../shared/types.js";
 
 const SECURITY_KEYWORDS =
 	/\b(password|secret|token|auth|crypto|jwt|hmac|sql|exec|eval|child_process|innerHTML|dangerouslySetInnerHTML|cors|cookie|session|privilege|sudo|chmod|deserialize)\b/i;
 
 const TEST_PATH = /(\.(test|spec)\.[jt]sx?$|(^|\/)(tests?|__tests__)\/)/i;
 
-function topDir(path) {
+export interface RawGroup {
+	id: string;
+	label: string;
+	files: string[];
+	additions: number;
+	deletions: number;
+}
+
+function topDir(path: string): string {
 	const parts = path.split("/");
 	if (parts.length <= 1) return "(root)";
 	// Group by up to two leading segments for a useful granularity.
@@ -20,25 +29,24 @@ function topDir(path) {
 //   - directory/module proximity (primary)
 //   - rename/move-only files split into their own "moves" group
 //   - co-change cohesion can later merge dirs (data available, applied softly)
-export function decompose(files, coChange) {
-	const groups = new Map(); // key -> group
+export function decompose(
+	files: DiffFile[],
+	coChange: CoChangeMap | null,
+): { groups: RawGroup[]; affinity: Affinity[] } {
+	const groups = new Map<string, RawGroup>();
 
-	const ensure = (key, label) => {
-		if (!groups.has(key)) {
-			groups.set(key, {
-				id: key,
-				label,
-				files: [],
-				additions: 0,
-				deletions: 0,
-			});
+	const ensure = (key: string, label: string): RawGroup => {
+		let g = groups.get(key);
+		if (!g) {
+			g = { id: key, label, files: [], additions: 0, deletions: 0 };
+			groups.set(key, g);
 		}
-		return groups.get(key);
+		return g;
 	};
 
 	for (const f of files) {
-		let key;
-		let label;
+		let key: string;
+		let label: string;
 		if (f.renameOnly) {
 			key = "moves";
 			label = "Moves & renames";
@@ -60,7 +68,7 @@ export function decompose(files, coChange) {
 
 	// Soft co-change merge: if two dir-groups share many co-changing files,
 	// note the affinity (used as evidence, not auto-merged to stay transparent).
-	const affinity = [];
+	const affinity: Affinity[] = [];
 	if (coChange) {
 		for (const [key, count] of coChange.entries()) {
 			if (count >= 2) {
@@ -78,36 +86,22 @@ export function decompose(files, coChange) {
 
 // Lightweight JS/TS fan-in: how many *unchanged* files import a changed module.
 // Best-effort regex scan; degrades gracefully for other languages.
-export async function fanIn(runGit, cwd, changedPaths) {
-	const result = new Map(); // path -> count
+export async function fanIn(
+	git: typeof runGit,
+	cwd: string,
+	changedPaths: string[],
+): Promise<Map<string, number>> {
+	const result = new Map<string, number>();
 	const jsish = changedPaths.filter((p) => /\.[jt]sx?$/.test(p));
 	if (jsish.length === 0) return result;
 
-	let grepOut = "";
-	try {
-		// Search import/require/from statements across the repo once.
-		grepOut = await runGit(cwd, [
-			"grep",
-			"-I",
-			"-l",
-			"-E",
-			"(import .*from|require\\(|from ['\"])",
-			"--",
-			"*.js",
-			"*.jsx",
-			"*.ts",
-			"*.tsx",
-		]).catch(() => "");
-	} catch {
-		grepOut = "";
-	}
 	// Without parsing every importer, approximate by basename references.
 	for (const path of jsish) {
 		const base = path.replace(/\.[jt]sx?$/, "").split("/").pop();
 		if (!base) continue;
 		let count = 0;
 		try {
-			const hits = await runGit(cwd, [
+			const hits = await git(cwd, [
 				"grep",
 				"-I",
 				"-l",
@@ -126,13 +120,13 @@ export async function fanIn(runGit, cwd, changedPaths) {
 	return result;
 }
 
-function escapeRe(s) {
+function escapeRe(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // Per-file risk score in [0,1] with the evidence behind it.
-export function scoreFile(file, fanInCount) {
-	const reasons = [];
+export function scoreFile(file: DiffFile, fanInCount: number): RiskScore {
+	const reasons: string[] = [];
 	let score = 0;
 
 	const churn = file.additions + file.deletions;
@@ -171,9 +165,13 @@ export function scoreFile(file, fanInCount) {
 
 // Per-file suspicion flags mined from the actual diff text. These fight
 // rubber-stamping: each flag costs the reviewer an explicit disposition.
-export async function suspicionFlags(cwd, mergeBase, file) {
+export async function suspicionFlags(
+	cwd: string,
+	mergeBase: string,
+	file: DiffFile,
+): Promise<SuspicionFlag[]> {
 	if (file.noise || file.renameOnly) return [];
-	const flags = [];
+	const flags: SuspicionFlag[] = [];
 	const text = await fileDiff(cwd, mergeBase, file.path).catch(() => "");
 	if (!text) return flags;
 

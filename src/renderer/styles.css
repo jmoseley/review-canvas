@@ -533,3 +533,64 @@ body {
 	padding: 6px 8px;
 	font-size: 12px;
 }
+
+/* Base picker popover (replaces window.prompt) */
+.base-picker {
+position: absolute;
+top: 44px;
+right: 14px;
+z-index: 30;
+width: 320px;
+max-height: 50vh;
+display: flex;
+flex-direction: column;
+background: var(--bg-2);
+border: 1px solid var(--border);
+border-radius: 8px;
+box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.base-picker input {
+margin: 8px;
+padding: 6px 8px;
+background: var(--bg);
+border: 1px solid var(--border);
+border-radius: 6px;
+color: var(--fg);
+font-size: 12px;
+}
+.base-picker-list {
+overflow-y: auto;
+padding: 0 4px 6px;
+}
+.base-picker-item {
+display: block;
+width: 100%;
+text-align: left;
+padding: 5px 10px;
+background: transparent;
+border: 0;
+border-radius: 6px;
+color: var(--fg);
+font-size: 12px;
+cursor: pointer;
+font-family: ui-monospace, monospace;
+}
+.base-picker-item:hover {
+background: var(--bg-3);
+}
+.base-picker-item.current {
+color: var(--accent);
+font-weight: 600;
+}
+.base-picker-empty {
+padding: 8px 12px;
+color: var(--fg-muted);
+font-size: 12px;
+}
+
+/* Inline confirm (replaces window.confirm) */
+.confirm-inline {
+display: inline-flex;
+gap: 6px;
+align-items: center;
+}

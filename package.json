@@ -1,0 +1,26 @@
+{
+  "name": "review-lens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "esbuild": "^0.28.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:renderer": "vite build",
+    "build:server": "node scripts/build-server.mjs",
+    "build": "npm run build:server && npm run build:renderer",
+    "dev": "node scripts/dev.mjs",
+    "share": "node scripts/share.mjs"
+  }
+}
